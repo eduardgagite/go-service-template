@@ -43,7 +43,7 @@
 ### 🏗️ **Архитектура**
 - 🎯 **Clean Architecture** - чистая архитектура
 - 📦 **Модульная структура** - легко расширяемая
-- 🔌 **Dependency Injection** - слабое связывание
+- 🔌 **Service Layer** - бизнес-логика отделена от HTTP
 - 🏭 **Repository Pattern** - абстракция данных
 
 </td>
@@ -89,12 +89,33 @@ go-service-template/
 │   ├── config/           # Конфигурация
 │   ├── models/           # Модели данных
 │   ├── server/           # HTTP сервер и роуты
+│   ├── service/          # Бизнес-логика (Service Layer)
 │   └── storage/          # Слой работы с БД
 ├── migrations/           # SQL миграции
 ├── docker-compose.yml    # Docker Compose конфигурация
 ├── Dockerfile           # Docker образ
 └── README.md
 ```
+
+## 🏛️ Архитектура
+
+Проект построен на принципах **Clean Architecture** с четким разделением слоев:
+
+```
+┌─────────────────┐
+│   HTTP Layer    │  ← Handlers (REST API, парсинг запросов)
+├─────────────────┤
+│ Business Logic  │  ← Services (валидация, бизнес-правила)  
+├─────────────────┤
+│   Data Access   │  ← Storage (работа с базой данных)
+└─────────────────┘
+```
+
+**Преимущества архитектуры:**
+- 🧪 **Тестируемость** - бизнес-логика изолирована от HTTP
+- 🔄 **Переиспользование** - сервисы можно использовать в gRPC/CLI
+- 🎯 **Единая ответственность** - каждый слой решает свои задачи
+- 📈 **Масштабируемость** - легко добавлять новые функции
 
 ## 🛠 Быстрый старт
 
@@ -294,7 +315,12 @@ type User struct {
     ID       int       `json:"id"`
     Name     string    `json:"name"`
     Email    string    `json:"email"`
-    CreateAt time.Time `json:"created_at"`
+    CreatedAt time.Time `json:"created_at"`
+}
+
+type UserRequest struct {
+    Name  string `json:"name"`
+    Email string `json:"email"`
 }
 ```
 
@@ -312,21 +338,65 @@ type Storage interface {
 ```go
 // internal/storage/postgres/storage.go
 func (s *PostgresStorage) CreateUser(user *User) error {
-    // реализация
+    query := `INSERT INTO users (name, email, created_at) VALUES ($1, $2, $3) RETURNING id`
+    err := s.db.QueryRow(query, user.Name, user.Email, user.CreatedAt).Scan(&user.ID)
+    return err
 }
 ```
 
-#### 4️⃣ Создайте обработчики
+#### 4️⃣ Добавьте методы в Service
+```go
+// internal/service/service.go
+type Service interface {
+    // ... существующие методы
+    CreateUser(req *UserRequest) (*User, error)
+    GetUserByID(id int) (*User, error)
+}
+
+// internal/service/user.go (или в example.go)
+func (s *service) CreateUser(req *UserRequest) (*User, error) {
+    // Валидация
+    if strings.TrimSpace(req.Name) == "" {
+        return nil, errors.New("name is required")
+    }
+    
+    // Создание модели
+    user := &User{
+        Name:      strings.TrimSpace(req.Name),
+        Email:     strings.TrimSpace(req.Email),
+        CreatedAt: time.Now(),
+    }
+    
+    // Сохранение
+    if err := s.storage.CreateUser(user); err != nil {
+        return nil, errors.New("failed to create user")
+    }
+    
+    return user, nil
+}
+```
+
+#### 5️⃣ Создайте обработчики
 ```go
 // internal/server/handlers.go
 // @Summary Create user
 // @Tags users
 func (s *Server) createUser(c *fiber.Ctx) error {
-    // реализация
+    var req UserRequest
+    if err := c.BodyParser(&req); err != nil {
+        return c.Status(400).JSON(ErrorResponse{Error: err.Error()})
+    }
+    
+    user, err := s.services.Example.CreateUser(&req)
+    if err != nil {
+        return c.Status(400).JSON(ErrorResponse{Error: err.Error()})
+    }
+    
+    return c.Status(201).JSON(user)
 }
 ```
 
-#### 5️⃣ Добавьте роуты
+#### 6️⃣ Добавьте роуты
 ```go
 // internal/server/server.go
 users := api.Group("/users")

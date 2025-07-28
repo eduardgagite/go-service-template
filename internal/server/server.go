@@ -1,9 +1,10 @@
 package server
 
 import (
-	"go-service-template/internal/storage"
 	"log/slog"
 	"time"
+
+	"go-service-template/internal/service"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
@@ -12,15 +13,15 @@ import (
 )
 
 type Server struct {
-	storage storage.Storage
-	logger  *slog.Logger
-	app     *fiber.App
+	services *service.Services
+	logger   *slog.Logger
+	app      *fiber.App
 }
 
-func New(storage storage.Storage, slogger *slog.Logger) *Server {
+func New(services *service.Services, slogger *slog.Logger) *Server {
 	return &Server{
-		storage: storage,
-		logger:  slogger,
+		services: services,
+		logger:   slogger,
 	}
 }
 

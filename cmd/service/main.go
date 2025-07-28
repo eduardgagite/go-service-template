@@ -9,6 +9,7 @@ import (
 
 	"go-service-template/internal/config"
 	"go-service-template/internal/server"
+	"go-service-template/internal/service"
 	"go-service-template/internal/storage/postgres"
 )
 
@@ -47,15 +48,15 @@ func main() {
 
 	logger := setupLogger(cfg.App.DebugMode)
 
-	db := postgres.NewStorage()
-	err = db.Connect(cfg.DatabaseDSN())
+	db, err := postgres.NewStorage(cfg.DatabaseDSN())
 	if err != nil {
 		logger.Error("Failed to connect to database", slog.String("error", err.Error()))
 		return
 	}
 	defer db.Close()
 
-	srv := server.New(db, logger)
+	services := service.NewServices(db, logger)
+	srv := server.New(services, logger)
 	port := strconv.Itoa(cfg.Server.Port)
 
 	if err := srv.Start(port); err != nil {

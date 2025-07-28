@@ -4,8 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"go-service-template/internal/models"
 	"time"
+
+	"go-service-template/internal/models"
 
 	_ "github.com/lib/pq"
 )
@@ -14,22 +15,18 @@ type PostgresStorage struct {
 	db *sql.DB
 }
 
-func NewStorage() *PostgresStorage {
-	return &PostgresStorage{}
-}
-
-func (s *PostgresStorage) Connect(dsn string) error {
+func NewStorage(dsn string) (*PostgresStorage, error) {
 	db, err := sql.Open("postgres", dsn)
 	if err != nil {
-		return fmt.Errorf("failed to open database connection: %w", err)
+		return nil, fmt.Errorf("failed to open database connection: %w", err)
 	}
 
 	if err := db.Ping(); err != nil {
-		return fmt.Errorf("failed to ping database: %w", err)
+		db.Close()
+		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	s.db = db
-	return nil
+	return &PostgresStorage{db: db}, nil
 }
 
 func (s *PostgresStorage) Close() error {
