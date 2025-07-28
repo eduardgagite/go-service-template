@@ -1,9 +1,9 @@
 package server
 
 import (
-	"go-service-template/internal/models"
 	"strconv"
-	"time"
+
+	"go-service-template/internal/models"
 
 	"github.com/gofiber/fiber/v2"
 )
@@ -31,7 +31,6 @@ func (s *Server) healthCheck(c *fiber.Ctx) error {
 // @Param example body models.ExampleRequest true "Example data"
 // @Success 201 {object} models.Example
 // @Failure 400 {object} models.ErrorResponse "Invalid input data"
-// @Failure 500 {object} models.ErrorResponse "Internal server error"
 // @Router /examples [post]
 func (s *Server) createExample(c *fiber.Ctx) error {
 	var req models.ExampleRequest
@@ -41,25 +40,10 @@ func (s *Server) createExample(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.Name == "" {
+	example, err := s.services.Example.CreateExample(&req)
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Name is required",
-		})
-	}
-
-	example := models.Example{
-		Name:        req.Name,
-		Description: req.Description,
-		Value:       req.Value,
-		IsActive:    req.IsActive,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
-	}
-
-	if err := s.storage.CreateExample(&example); err != nil {
-		s.logger.Error("Failed to create example", "error", err.Error())
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to create example",
+			Error: err.Error(),
 		})
 	}
 
@@ -76,31 +60,29 @@ func (s *Server) createExample(c *fiber.Ctx) error {
 // @Param offset query int false "Offset" default(0)
 // @Success 200 {object} models.ExampleResponse
 // @Failure 400 {object} models.ErrorResponse "Invalid parameters"
-// @Failure 500 {object} models.ErrorResponse "Internal server error"
 // @Router /examples [get]
 func (s *Server) getAllExamples(c *fiber.Ctx) error {
 	limitStr := c.Query("limit", "10")
 	offsetStr := c.Query("offset", "0")
 
 	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit <= 0 {
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Limit must be a positive number",
+			Error: "Invalid limit parameter",
 		})
 	}
 
 	offset, err := strconv.Atoi(offsetStr)
-	if err != nil || offset < 0 {
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Offset must be a non-negative number",
+			Error: "Invalid offset parameter",
 		})
 	}
 
-	examples, err := s.storage.GetAllExamples(limit, offset)
+	examples, err := s.services.Example.GetAllExamples(limit, offset)
 	if err != nil {
-		s.logger.Error("Failed to get examples", "error", err.Error())
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to get examples",
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
+			Error: err.Error(),
 		})
 	}
 
@@ -119,28 +101,25 @@ func (s *Server) getAllExamples(c *fiber.Ctx) error {
 // @Success 200 {object} models.Example
 // @Failure 400 {object} models.ErrorResponse "Invalid ID"
 // @Failure 404 {object} models.ErrorResponse "Example not found"
-// @Failure 500 {object} models.ErrorResponse "Internal server error"
 // @Router /examples/{id} [get]
 func (s *Server) getExample(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := strconv.Atoi(idStr)
-	if err != nil || id <= 0 {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Valid example ID is required",
-		})
-	}
-
-	example, err := s.storage.GetExampleByID(id)
 	if err != nil {
-		s.logger.Error("Failed to get example", "error", err.Error())
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to get example",
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
+			Error: "Invalid example ID",
 		})
 	}
 
-	if example == nil {
-		return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
-			Error: "Example not found",
+	example, err := s.services.Example.GetExampleByID(id)
+	if err != nil {
+		if err.Error() == "example not found" {
+			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
+				Error: err.Error(),
+			})
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
+			Error: err.Error(),
 		})
 	}
 
@@ -158,14 +137,13 @@ func (s *Server) getExample(c *fiber.Ctx) error {
 // @Success 200 {object} models.Example
 // @Failure 400 {object} models.ErrorResponse "Invalid input data"
 // @Failure 404 {object} models.ErrorResponse "Example not found"
-// @Failure 500 {object} models.ErrorResponse "Internal server error"
 // @Router /examples/{id} [put]
 func (s *Server) updateExample(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := strconv.Atoi(idStr)
-	if err != nil || id <= 0 {
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Valid example ID is required",
+			Error: "Invalid example ID",
 		})
 	}
 
@@ -176,30 +154,15 @@ func (s *Server) updateExample(c *fiber.Ctx) error {
 		})
 	}
 
-	if req.Name == "" {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Name is required",
-		})
-	}
-
-	example := models.Example{
-		ID:          id,
-		Name:        req.Name,
-		Description: req.Description,
-		Value:       req.Value,
-		IsActive:    req.IsActive,
-		UpdatedAt:   time.Now(),
-	}
-
-	if err := s.storage.UpdateExample(&example); err != nil {
+	example, err := s.services.Example.UpdateExample(id, &req)
+	if err != nil {
 		if err.Error() == "example not found" {
 			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
-				Error: "Example not found",
+				Error: err.Error(),
 			})
 		}
-		s.logger.Error("Failed to update example", "error", err.Error())
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to update example",
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
+			Error: err.Error(),
 		})
 	}
 
@@ -216,26 +179,24 @@ func (s *Server) updateExample(c *fiber.Ctx) error {
 // @Success 200 {object} models.MessageResponse
 // @Failure 400 {object} models.ErrorResponse "Invalid ID"
 // @Failure 404 {object} models.ErrorResponse "Example not found"
-// @Failure 500 {object} models.ErrorResponse "Internal server error"
 // @Router /examples/{id} [delete]
 func (s *Server) deleteExample(c *fiber.Ctx) error {
 	idStr := c.Params("id")
 	id, err := strconv.Atoi(idStr)
-	if err != nil || id <= 0 {
+	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: "Valid example ID is required",
+			Error: "Invalid example ID",
 		})
 	}
 
-	if err := s.storage.DeleteExample(id); err != nil {
+	if err := s.services.Example.DeleteExample(id); err != nil {
 		if err.Error() == "example not found" {
 			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
-				Error: "Example not found",
+				Error: err.Error(),
 			})
 		}
-		s.logger.Error("Failed to delete example", "error", err.Error())
-		return c.Status(fiber.StatusInternalServerError).JSON(models.ErrorResponse{
-			Error: "Failed to delete example",
+		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
+			Error: err.Error(),
 		})
 	}
 

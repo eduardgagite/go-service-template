@@ -5,7 +5,6 @@ import (
 )
 
 type Storage interface {
-	Connect(dsn string) error
 	Close() error
 
 	CreateExample(example *models.Example) error
