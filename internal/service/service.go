@@ -4,7 +4,6 @@ import (
 	"log/slog"
 
 	"go-service-template/internal/models"
-	"go-service-template/internal/storage"
 )
 
 type Service interface {
@@ -19,7 +18,7 @@ type Services struct {
 	Example Service
 }
 
-func NewServices(storage storage.Storage, logger *slog.Logger) *Services {
+func NewServices(storage Storage, logger *slog.Logger) *Services {
 	return &Services{
 		Example: NewService(storage, logger),
 	}
