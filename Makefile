@@ -132,9 +132,34 @@ deps: ## 📦 Установить зависимости
 	@go mod tidy
 	@echo "$(GREEN)✅ Зависимости установлены$(NC)"
 
+install-swag: ## 🔧 Установить swag CLI для генерации Swagger документации
+	@echo "$(PURPLE)🔧 Установка swag CLI...$(NC)"
+	@if command -v swag > /dev/null; then \
+		echo "$(GREEN)✅ swag уже установлен$(NC)"; \
+	else \
+		go install github.com/swaggo/swag/cmd/swag@latest; \
+		echo "$(GREEN)✅ swag установлен$(NC)"; \
+	fi
+
+swagger-gen: install-swag ## 📚 Генерировать Swagger документацию
+	@echo "$(CYAN)📚 Генерация Swagger документации...$(NC)"
+	@swag init -g cmd/service/main.go -o docs --parseInternal
+	@echo "$(GREEN)✅ Swagger документация сгенерирована в папке docs/$(NC)"
+
+swagger-serve: swagger-gen ## 🌐 Запустить сервер с обновленной документацией
+	@echo "$(BLUE)🌐 Запуск сервера с актуальной Swagger документацией...$(NC)"
+	@go run ./cmd/service &
+	@sleep 2
+	@echo "$(GREEN)✅ Сервер запущен!$(NC)"
+	@echo "$(CYAN)┌──────────────────────────────────────────────┐$(NC)"
+	@echo "$(CYAN)│  📚 Swagger: http://localhost:8080/swagger/  │$(NC)"
+	@echo "$(CYAN)│  🌐 API:     http://localhost:8080          │$(NC)"
+	@echo "$(CYAN)└──────────────────────────────────────────────┘$(NC)"
+
 clean: ## 🧹 Очистить артефакты сборки
 	@echo "$(YELLOW)🧹 Очистка...$(NC)"
 	@rm -rf $(BINARY_DIR)
+	@rm -rf docs/
 	@rm -f coverage.out coverage.html
 	@go clean
 	@echo "$(GREEN)✅ Очистка завершена$(NC)"
@@ -162,12 +187,17 @@ help: ## 📖 Показать справку
 	@echo "$(PURPLE)🗄️  БАЗА ДАННЫХ:$(NC)"
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ { if ($$0 ~ /migrate/) printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
+	@echo "$(YELLOW)📚 SWAGGER ДОКУМЕНТАЦИЯ:$(NC)"
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ { if ($$0 ~ /swagger/) printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@echo ""
 	@echo "$(CYAN)🛠️  УТИЛИТЫ:$(NC)"
-	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ { if ($$0 ~ /(deps|clean|help):/) printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
+	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*?##/ { if ($$0 ~ /(deps|install-swag|clean|help):/) printf "  $(GREEN)%-20s$(NC) %s\n", $$1, $$2 }' $(MAKEFILE_LIST)
 	@echo ""
 	@echo "$(BOLD)💡 Примеры использования:$(NC)"
 	@echo "  $(YELLOW)make start$(NC)           - Быстрый запуск с Docker"
 	@echo "  $(YELLOW)make run$(NC)             - Локальная разработка"
+	@echo "  $(YELLOW)make swagger-serve$(NC)   - Запуск с генерацией документации"
+	@echo "  $(YELLOW)make swagger-gen$(NC)     - Только генерация Swagger"
 	@echo "  $(YELLOW)make check$(NC)           - Полная проверка кода"
 	@echo "  $(YELLOW)make test-coverage$(NC)   - Тесты с отчетом о покрытии"
 	@echo "" 

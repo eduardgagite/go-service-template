@@ -14,6 +14,8 @@ import (
 	"go-service-template/internal/server"
 	"go-service-template/internal/service"
 	"go-service-template/internal/storage/postgres"
+
+	_ "go-service-template/docs"
 )
 
 // @title Service API
