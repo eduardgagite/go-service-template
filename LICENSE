@@ -1,6 +1,6 @@
 MIT License
 
-Copyright (c) 2025 EDUARD G.
+Copyright (c) 2024 Go Service Template
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -19,3 +19,20 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+================================================================================
+
+This project includes the following open source components:
+
+• Fiber Web Framework (https://github.com/gofiber/fiber) - MIT License
+• PostgreSQL Driver (https://github.com/lib/pq) - MIT License  
+• Golang Standard Library - BSD-style License
+• Docker - Apache License 2.0
+
+For detailed license information of dependencies, please refer to their 
+respective repositories and the go.mod file.
+
+================================================================================
+
+Go Service Template - A modern microservice template for Go applications
+Built with ❤️ for the Go community 
