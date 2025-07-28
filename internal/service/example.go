@@ -7,15 +7,14 @@ import (
 	"time"
 
 	"go-service-template/internal/models"
-	"go-service-template/internal/storage"
 )
 
 type service struct {
-	storage storage.Storage
+	storage Storage
 	logger  *slog.Logger
 }
 
-func NewService(storage storage.Storage, logger *slog.Logger) Service {
+func NewService(storage Storage, logger *slog.Logger) Service {
 	return &service{
 		storage: storage,
 		logger:  logger,
