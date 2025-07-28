@@ -55,4 +55,7 @@ go-service-template
 
 # Coverage
 coverage.out
-coverage.html 
+coverage.html
+
+# Generated documentation
+docs/ 
