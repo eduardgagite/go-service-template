@@ -89,8 +89,12 @@ go-service-template/
 │   ├── config/           # Конфигурация
 │   ├── models/           # Модели данных
 │   ├── server/           # HTTP сервер и роуты
-│   ├── service/          # Бизнес-логика (Service Layer)
-│   └── storage/          # Слой работы с БД
+│   ├── service/          # Бизнес-логика + Storage интерфейс
+│   │   ├── service.go    # Service интерфейс
+│   │   ├── example.go    # Service реализация
+│   │   └── storage.go    # Storage интерфейс
+│   └── storage/          # Реализации хранилищ
+│       └── postgres/     # PostgreSQL реализация Storage
 ├── migrations/           # SQL миграции
 ├── docker-compose.yml    # Docker Compose конфигурация
 ├── Dockerfile           # Docker образ
@@ -106,16 +110,11 @@ go-service-template/
 │   HTTP Layer    │  ← Handlers (REST API, парсинг запросов)
 ├─────────────────┤
 │ Business Logic  │  ← Services (валидация, бизнес-правила)  
+│    + Interfaces │  ← Storage интерфейс (DIP принцип)
 ├─────────────────┤
-│   Data Access   │  ← Storage (работа с базой данных)
+│   Data Access   │  ← PostgreSQL (реализует Storage)
 └─────────────────┘
 ```
-
-**Преимущества архитектуры:**
-- 🧪 **Тестируемость** - бизнес-логика изолирована от HTTP
-- 🔄 **Переиспользование** - сервисы можно использовать в gRPC/CLI
-- 🎯 **Единая ответственность** - каждый слой решает свои задачи
-- 📈 **Масштабируемость** - легко добавлять новые функции
 
 ## 🛠 Быстрый старт
 
@@ -326,7 +325,7 @@ type UserRequest struct {
 
 #### 2️⃣ Добавьте методы в Storage
 ```go
-// internal/storage/storage.go
+// internal/service/storage.go
 type Storage interface {
     // ... существующие методы
     CreateUser(user *User) error
@@ -337,6 +336,9 @@ type Storage interface {
 #### 3️⃣ Реализуйте в PostgreSQL
 ```go
 // internal/storage/postgres/storage.go
+import "go-service-template/internal/service"
+
+// PostgresStorage реализует service.Storage
 func (s *PostgresStorage) CreateUser(user *User) error {
     query := `INSERT INTO users (name, email, created_at) VALUES ($1, $2, $3) RETURNING id`
     err := s.db.QueryRow(query, user.Name, user.Email, user.CreatedAt).Scan(&user.ID)
