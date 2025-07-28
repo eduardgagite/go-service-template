@@ -1,10 +1,13 @@
 package main
 
 import (
+	"context"
 	"io"
 	"log/slog"
 	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 	"time"
 
 	"go-service-template/internal/config"
@@ -46,7 +49,12 @@ func main() {
 	}
 	time.Local = moscowLoc
 
-	logger := setupLogger(cfg.App.DebugMode)
+	logFile, logger := setupLogger(cfg.App.DebugMode)
+	defer func() {
+		if logFile != nil {
+			logFile.Close()
+		}
+	}()
 
 	db, err := postgres.NewStorage(cfg.DatabaseDSN())
 	if err != nil {
@@ -56,16 +64,43 @@ func main() {
 	defer db.Close()
 
 	services := service.NewServices(db, logger)
-	srv := server.New(services, logger)
+	srv := server.New(services, logger, cfg)
 	port := strconv.Itoa(cfg.Server.Port)
 
-	if err := srv.Start(port); err != nil {
-		logger.Error("Server failed to start", slog.String("error", err.Error()))
-		panic(err)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go func() {
+		logger.Info("Starting server", slog.String("port", port))
+		if err := srv.Start(port); err != nil {
+			logger.Error("Server failed to start", slog.String("error", err.Error()))
+			cancel()
+		}
+	}()
+
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case <-quit:
+		logger.Info("Shutdown signal received")
+	case <-ctx.Done():
+		logger.Info("Context cancelled")
+	}
+
+	logger.Info("Server is shutting down...")
+
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer shutdownCancel()
+
+	if err := srv.Shutdown(shutdownCtx); err != nil {
+		logger.Error("Server forced to shutdown", slog.String("error", err.Error()))
+	} else {
+		logger.Info("Server exited gracefully")
 	}
 }
 
-func setupLogger(debugMode bool) *slog.Logger {
+func setupLogger(debugMode bool) (*os.File, *slog.Logger) {
 	var logger *slog.Logger
 	logFile := createLogFile()
 
@@ -75,7 +110,7 @@ func setupLogger(debugMode bool) *slog.Logger {
 		logger = slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stdout, logFile), &slog.HandlerOptions{Level: slog.LevelInfo}))
 	}
 
-	return logger
+	return logFile, logger
 }
 
 func createLogFile() *os.File {
