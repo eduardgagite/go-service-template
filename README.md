@@ -495,7 +495,7 @@ func TestCreateExample(t *testing.T) {
 ```
 MIT License
 
-Copyright (c) 2024 Go Service Template
+Copyright (c) 2025 Go Service Template
 ```
 
 Этот проект распространяется под лицензией MIT. Подробности смотрите в файле [LICENSE](LICENSE).
