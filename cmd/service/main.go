@@ -58,7 +58,9 @@ func main() {
 		}
 	}()
 
-	db, err := postgres.NewStorage(cfg.DatabaseDSN())
+    dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
+    defer dbCancel()
+    db, err := postgres.NewStorage(dbCtx, cfg.DatabaseDSN())
 	if err != nil {
 		logger.Error("Failed to connect to database", slog.String("error", err.Error()))
 		return
@@ -74,7 +76,7 @@ func main() {
 
 	go func() {
 		logger.Info("Starting server", slog.String("port", port))
-		if err := srv.Start(port); err != nil {
+        if err := srv.Start(port); err != nil {
 			logger.Error("Server failed to start", slog.String("error", err.Error()))
 			cancel()
 		}

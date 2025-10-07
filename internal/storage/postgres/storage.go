@@ -1,42 +1,52 @@
 package postgres
 
 import (
-	"database/sql"
-	"errors"
-	"fmt"
-	"time"
+    "context"
+    "database/sql"
+    "errors"
+    "fmt"
+    "time"
 
-	"go-service-template/internal/models"
+    "go-service-template/internal/models"
 
-	_ "github.com/lib/pq"
+    "github.com/jackc/pgx/v5/pgxpool"
 )
 
 type PostgresStorage struct {
-	db *sql.DB
+    pool *pgxpool.Pool
 }
 
-func NewStorage(dsn string) (*PostgresStorage, error) {
-	db, err := sql.Open("postgres", dsn)
-	if err != nil {
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
-	}
+func NewStorage(ctx context.Context, dsn string) (*PostgresStorage, error) {
+    cfg, err := pgxpool.ParseConfig(dsn)
+    if err != nil {
+        return nil, fmt.Errorf("failed to parse dsn: %w", err)
+    }
+    // reasonable defaults; can be tuned via env later
+    cfg.MaxConns = 10
+    cfg.MinConns = 1
+    cfg.MaxConnLifetime = time.Hour
+    cfg.MaxConnIdleTime = 30 * time.Minute
 
-	if err := db.Ping(); err != nil {
-		db.Close()
-		return nil, fmt.Errorf("failed to ping database: %w", err)
-	}
+    pool, err := pgxpool.NewWithConfig(ctx, cfg)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create pgx pool: %w", err)
+    }
+    if err := pool.Ping(ctx); err != nil {
+        pool.Close()
+        return nil, fmt.Errorf("failed to ping database: %w", err)
+    }
 
-	return &PostgresStorage{db: db}, nil
+    return &PostgresStorage{pool: pool}, nil
 }
 
 func (s *PostgresStorage) Close() error {
-	if s.db != nil {
-		return s.db.Close()
-	}
-	return nil
+    if s.pool != nil {
+        s.pool.Close()
+    }
+    return nil
 }
 
-func (s *PostgresStorage) CreateExample(example *models.Example) error {
+func (s *PostgresStorage) CreateExample(ctx context.Context, example *models.Example) error {
 	query := `
 		INSERT INTO examples (name, description, value, is_active, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6)
@@ -45,8 +55,8 @@ func (s *PostgresStorage) CreateExample(example *models.Example) error {
 	example.CreatedAt = time.Now()
 	example.UpdatedAt = time.Now()
 
-	err := s.db.QueryRow(query, example.Name, example.Description, example.Value,
-		example.IsActive, example.CreatedAt, example.UpdatedAt).Scan(&example.ID)
+    err := s.pool.QueryRow(ctx, query, example.Name, example.Description, example.Value,
+        example.IsActive, example.CreatedAt, example.UpdatedAt).Scan(&example.ID)
 	if err != nil {
 		return fmt.Errorf("failed to create example: %w", err)
 	}
@@ -54,20 +64,20 @@ func (s *PostgresStorage) CreateExample(example *models.Example) error {
 	return nil
 }
 
-func (s *PostgresStorage) GetExampleByID(id int) (*models.Example, error) {
+func (s *PostgresStorage) GetExampleByID(ctx context.Context, id int) (*models.Example, error) {
 	query := `
 		SELECT id, name, description, value, is_active, created_at, updated_at
 		FROM examples
 		WHERE id = $1`
 
 	example := &models.Example{}
-	err := s.db.QueryRow(query, id).Scan(
+    err := s.pool.QueryRow(ctx, query, id).Scan(
 		&example.ID, &example.Name, &example.Description, &example.Value,
 		&example.IsActive, &example.CreatedAt, &example.UpdatedAt,
 	)
 
 	if err != nil {
-		if err == sql.ErrNoRows {
+        if errors.Is(err, sql.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get example: %w", err)
@@ -76,14 +86,14 @@ func (s *PostgresStorage) GetExampleByID(id int) (*models.Example, error) {
 	return example, nil
 }
 
-func (s *PostgresStorage) GetAllExamples(limit, offset int) ([]models.Example, error) {
+func (s *PostgresStorage) GetAllExamples(ctx context.Context, limit, offset int) ([]models.Example, error) {
 	query := `
 		SELECT id, name, description, value, is_active, created_at, updated_at
 		FROM examples
 		ORDER BY id 
 		LIMIT $1 OFFSET $2`
 
-	rows, err := s.db.Query(query, limit, offset)
+    rows, err := s.pool.Query(ctx, query, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get examples: %w", err)
 	}
@@ -92,7 +102,7 @@ func (s *PostgresStorage) GetAllExamples(limit, offset int) ([]models.Example, e
 	var examples []models.Example
 	for rows.Next() {
 		var example models.Example
-		err := rows.Scan(
+        err := rows.Scan(
 			&example.ID, &example.Name, &example.Description, &example.Value,
 			&example.IsActive, &example.CreatedAt, &example.UpdatedAt,
 		)
@@ -105,7 +115,7 @@ func (s *PostgresStorage) GetAllExamples(limit, offset int) ([]models.Example, e
 	return examples, nil
 }
 
-func (s *PostgresStorage) UpdateExample(example *models.Example) error {
+func (s *PostgresStorage) UpdateExample(ctx context.Context, example *models.Example) error {
 	query := `
 		UPDATE examples 
 		SET name = $1, description = $2, value = $3, is_active = $4, updated_at = $5
@@ -113,38 +123,28 @@ func (s *PostgresStorage) UpdateExample(example *models.Example) error {
 
 	example.UpdatedAt = time.Now()
 
-	result, err := s.db.Exec(query, example.Name, example.Description, example.Value,
-		example.IsActive, example.UpdatedAt, example.ID)
+    ct, err := s.pool.Exec(ctx, query, example.Name, example.Description, example.Value,
+        example.IsActive, example.UpdatedAt, example.ID)
 	if err != nil {
 		return fmt.Errorf("failed to update example: %w", err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
+    if ct.RowsAffected() == 0 {
 		return errors.New("example not found")
 	}
 
 	return nil
 }
 
-func (s *PostgresStorage) DeleteExample(id int) error {
+func (s *PostgresStorage) DeleteExample(ctx context.Context, id int) error {
 	query := `DELETE FROM examples WHERE id = $1`
 
-	result, err := s.db.Exec(query, id)
+    ct, err := s.pool.Exec(ctx, query, id)
 	if err != nil {
 		return fmt.Errorf("failed to delete example: %w", err)
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		return fmt.Errorf("failed to get rows affected: %w", err)
-	}
-
-	if rowsAffected == 0 {
+    if ct.RowsAffected() == 0 {
 		return errors.New("example not found")
 	}
 

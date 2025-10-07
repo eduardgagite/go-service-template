@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"go-service-template/internal/models"
+    "context"
 )
 
 type service struct {
@@ -21,7 +22,7 @@ func NewService(storage Storage, logger *slog.Logger) Service {
 	}
 }
 
-func (s *service) CreateExample(req *models.ExampleRequest) (*models.Example, error) {
+func (s *service) CreateExample(ctx context.Context, req *models.ExampleRequest) (*models.Example, error) {
 	if err := s.validateExampleRequest(req); err != nil {
 		return nil, err
 	}
@@ -35,7 +36,7 @@ func (s *service) CreateExample(req *models.ExampleRequest) (*models.Example, er
 		UpdatedAt:   time.Now(),
 	}
 
-	if err := s.storage.CreateExample(example); err != nil {
+    if err := s.storage.CreateExample(ctx, example); err != nil {
 		s.logger.Error("Failed to create example", slog.String("error", err.Error()))
 		return nil, errors.New("failed to create example")
 	}
@@ -44,12 +45,12 @@ func (s *service) CreateExample(req *models.ExampleRequest) (*models.Example, er
 	return example, nil
 }
 
-func (s *service) GetExampleByID(id int) (*models.Example, error) {
+func (s *service) GetExampleByID(ctx context.Context, id int) (*models.Example, error) {
 	if id <= 0 {
 		return nil, errors.New("example ID must be positive")
 	}
 
-	example, err := s.storage.GetExampleByID(id)
+    example, err := s.storage.GetExampleByID(ctx, id)
 	if err != nil {
 		s.logger.Error("Failed to get example", slog.Int("id", id), slog.String("error", err.Error()))
 		return nil, errors.New("failed to get example")
@@ -62,7 +63,7 @@ func (s *service) GetExampleByID(id int) (*models.Example, error) {
 	return example, nil
 }
 
-func (s *service) GetAllExamples(limit, offset int) ([]models.Example, error) {
+func (s *service) GetAllExamples(ctx context.Context, limit, offset int) ([]models.Example, error) {
 	if limit <= 0 {
 		return nil, errors.New("limit must be positive")
 	}
@@ -73,7 +74,7 @@ func (s *service) GetAllExamples(limit, offset int) ([]models.Example, error) {
 		limit = 100
 	}
 
-	examples, err := s.storage.GetAllExamples(limit, offset)
+    examples, err := s.storage.GetAllExamples(ctx, limit, offset)
 	if err != nil {
 		s.logger.Error("Failed to get examples", slog.String("error", err.Error()))
 		return nil, errors.New("failed to get examples")
@@ -82,7 +83,7 @@ func (s *service) GetAllExamples(limit, offset int) ([]models.Example, error) {
 	return examples, nil
 }
 
-func (s *service) UpdateExample(id int, req *models.ExampleRequest) (*models.Example, error) {
+func (s *service) UpdateExample(ctx context.Context, id int, req *models.ExampleRequest) (*models.Example, error) {
 	if id <= 0 {
 		return nil, errors.New("example ID must be positive")
 	}
@@ -91,7 +92,7 @@ func (s *service) UpdateExample(id int, req *models.ExampleRequest) (*models.Exa
 		return nil, err
 	}
 
-	existingExample, err := s.storage.GetExampleByID(id)
+    existingExample, err := s.storage.GetExampleByID(ctx, id)
 	if err != nil {
 		s.logger.Error("Failed to get example for update", slog.Int("id", id), slog.String("error", err.Error()))
 		return nil, errors.New("failed to get example")
@@ -110,7 +111,7 @@ func (s *service) UpdateExample(id int, req *models.ExampleRequest) (*models.Exa
 		UpdatedAt:   time.Now(),
 	}
 
-	if err := s.storage.UpdateExample(example); err != nil {
+    if err := s.storage.UpdateExample(ctx, example); err != nil {
 		s.logger.Error("Failed to update example", slog.Int("id", id), slog.String("error", err.Error()))
 		return nil, errors.New("failed to update example")
 	}
@@ -119,12 +120,12 @@ func (s *service) UpdateExample(id int, req *models.ExampleRequest) (*models.Exa
 	return example, nil
 }
 
-func (s *service) DeleteExample(id int) error {
+func (s *service) DeleteExample(ctx context.Context, id int) error {
 	if id <= 0 {
 		return errors.New("example ID must be positive")
 	}
 
-	existingExample, err := s.storage.GetExampleByID(id)
+    existingExample, err := s.storage.GetExampleByID(ctx, id)
 	if err != nil {
 		s.logger.Error("Failed to get example for deletion", slog.Int("id", id), slog.String("error", err.Error()))
 		return errors.New("failed to get example")
@@ -133,7 +134,7 @@ func (s *service) DeleteExample(id int) error {
 		return errors.New("example not found")
 	}
 
-	if err := s.storage.DeleteExample(id); err != nil {
+    if err := s.storage.DeleteExample(ctx, id); err != nil {
 		s.logger.Error("Failed to delete example", slog.Int("id", id), slog.String("error", err.Error()))
 		return errors.New("failed to delete example")
 	}

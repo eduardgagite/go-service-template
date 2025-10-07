@@ -1,11 +1,11 @@
 module go-service-template
 
-go 1.24.4
+go 1.23
 
 require (
 	github.com/gofiber/fiber/v2 v2.52.8
 	github.com/gofiber/swagger v1.1.1
-	github.com/lib/pq v1.10.9
+    github.com/jackc/pgx/v5 v5.6.0
 )
 
 require (
@@ -19,6 +19,7 @@ require (
 	github.com/go-openapi/swag v0.19.15 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
+    github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/klauspost/compress v1.17.9 // indirect
 	github.com/mailru/easyjson v0.7.6 // indirect
 	github.com/mattn/go-colorable v0.1.13 // indirect
