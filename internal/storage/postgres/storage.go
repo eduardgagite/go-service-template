@@ -8,6 +8,7 @@ import (
     "time"
 
     "go-service-template/internal/models"
+    "go-service-template/internal/config"
 
     "github.com/jackc/pgx/v5/pgxpool"
 )
@@ -16,16 +17,24 @@ type PostgresStorage struct {
     pool *pgxpool.Pool
 }
 
-func NewStorage(ctx context.Context, dsn string) (*PostgresStorage, error) {
+func NewStorage(ctx context.Context, dsn string, dbCfg config.DatabaseConfig) (*PostgresStorage, error) {
     cfg, err := pgxpool.ParseConfig(dsn)
     if err != nil {
         return nil, fmt.Errorf("failed to parse dsn: %w", err)
     }
-    // reasonable defaults; can be tuned via env later
-    cfg.MaxConns = 10
-    cfg.MinConns = 1
-    cfg.MaxConnLifetime = time.Hour
-    cfg.MaxConnIdleTime = 30 * time.Minute
+    
+    if dbCfg.MaxConns > 0 {
+        cfg.MaxConns = int32(dbCfg.MaxConns)
+    }
+    if dbCfg.MinConns >= 0 {
+        cfg.MinConns = int32(dbCfg.MinConns)
+    }
+    if dbCfg.MaxConnLifetime > 0 {
+        cfg.MaxConnLifetime = dbCfg.MaxConnLifetime
+    }
+    if dbCfg.MaxConnIdleTime > 0 {
+        cfg.MaxConnIdleTime = dbCfg.MaxConnIdleTime
+    }
 
     pool, err := pgxpool.NewWithConfig(ctx, cfg)
     if err != nil {

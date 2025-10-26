@@ -60,7 +60,7 @@ func main() {
 
     dbCtx, dbCancel := context.WithTimeout(context.Background(), 10*time.Second)
     defer dbCancel()
-    db, err := postgres.NewStorage(dbCtx, cfg.DatabaseDSN())
+    db, err := postgres.NewStorage(dbCtx, cfg.DatabaseDSN(), cfg.Database)
 	if err != nil {
 		logger.Error("Failed to connect to database", slog.String("error", err.Error()))
 		return
