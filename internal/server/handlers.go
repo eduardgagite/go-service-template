@@ -40,7 +40,7 @@ func (s *Server) createExample(c *fiber.Ctx) error {
 		})
 	}
 
-    example, err := s.services.Example.CreateExample(c.Context(), &req)
+    example, err := s.services.Example.CreateExample(c.UserContext(), &req)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
 			Error: err.Error(),
@@ -79,7 +79,7 @@ func (s *Server) getAllExamples(c *fiber.Ctx) error {
 		})
 	}
 
-    examples, err := s.services.Example.GetAllExamples(c.Context(), limit, offset)
+    examples, err := s.services.Example.GetAllExamples(c.UserContext(), limit, offset)
 	if err != nil {
 		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
 			Error: err.Error(),
@@ -111,7 +111,7 @@ func (s *Server) getExample(c *fiber.Ctx) error {
 		})
 	}
 
-    example, err := s.services.Example.GetExampleByID(c.Context(), id)
+    example, err := s.services.Example.GetExampleByID(c.UserContext(), id)
 	if err != nil {
 		if err.Error() == "example not found" {
 			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
@@ -154,7 +154,7 @@ func (s *Server) updateExample(c *fiber.Ctx) error {
 		})
 	}
 
-    example, err := s.services.Example.UpdateExample(c.Context(), id, &req)
+    example, err := s.services.Example.UpdateExample(c.UserContext(), id, &req)
 	if err != nil {
 		if err.Error() == "example not found" {
 			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
@@ -189,7 +189,7 @@ func (s *Server) deleteExample(c *fiber.Ctx) error {
 		})
 	}
 
-    if err := s.services.Example.DeleteExample(c.Context(), id); err != nil {
+    if err := s.services.Example.DeleteExample(c.UserContext(), id); err != nil {
 		if err.Error() == "example not found" {
 			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
 				Error: err.Error(),
