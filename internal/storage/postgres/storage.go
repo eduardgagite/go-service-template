@@ -2,7 +2,6 @@ package postgres
 
 import (
     "context"
-    "database/sql"
     "errors"
     "fmt"
     "time"
@@ -10,6 +9,7 @@ import (
     "go-service-template/internal/models"
     "go-service-template/internal/config"
 
+    "github.com/jackc/pgx/v5"
     "github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -86,7 +86,7 @@ func (s *PostgresStorage) GetExampleByID(ctx context.Context, id int) (*models.E
 	)
 
 	if err != nil {
-        if errors.Is(err, sql.ErrNoRows) {
+        if errors.Is(err, pgx.ErrNoRows) {
 			return nil, nil
 		}
 		return nil, fmt.Errorf("failed to get example: %w", err)
