@@ -20,6 +20,10 @@ type DatabaseConfig struct {
 	User     string
 	Password string
 	SSLMode  string
+    MaxConns int
+    MinConns int
+    MaxConnLifetime time.Duration
+    MaxConnIdleTime time.Duration
 }
 
 type ServerConfig struct {
@@ -42,6 +46,10 @@ func Load() (*Config, error) {
 	config.Database.User = getEnv("DB_USER", "postgres")
 	config.Database.Password = getEnv("DB_PASSWORD", "")
 	config.Database.SSLMode = getEnv("DB_SSLMODE", "disable")
+    config.Database.MaxConns = getEnvInt("DB_MAX_CONNS", 10)
+    config.Database.MinConns = getEnvInt("DB_MIN_CONNS", 1)
+    config.Database.MaxConnLifetime = getEnvDuration("DB_MAX_CONN_LIFETIME", time.Hour)
+    config.Database.MaxConnIdleTime = getEnvDuration("DB_MAX_CONN_IDLE_TIME", 30*time.Minute)
 
 	config.Server.Host = getEnv("SERVER_HOST", "localhost")
 	config.Server.Port = getEnvInt("SERVER_PORT", 8080)
