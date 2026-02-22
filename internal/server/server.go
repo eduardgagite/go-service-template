@@ -3,14 +3,15 @@ package server
 import (
 	"context"
 	"log/slog"
+	"net"
 	"time"
 
 	"go-service-template/internal/config"
 	"go-service-template/internal/service"
 
 	"github.com/gofiber/fiber/v2"
-	"github.com/gofiber/fiber/v2/middleware/logger"
 	"github.com/gofiber/fiber/v2/middleware/recover"
+	"github.com/gofiber/fiber/v2/middleware/requestid"
 	"github.com/gofiber/swagger"
 )
 
@@ -37,9 +38,10 @@ func (s *Server) setupRoutes() {
 	})
 
 	s.app.Use(recover.New())
-	s.app.Use(logger.New(logger.Config{
-		Format: "[${time}] ${status} - ${method} ${path} - ${latency}\n",
+	s.app.Use(requestid.New(requestid.Config{
+		Header: "X-Request-ID",
 	}))
+	s.app.Use(s.accessLogMiddleware())
 
 	s.app.Get("/swagger/*", swagger.HandlerDefault)
 
@@ -58,9 +60,14 @@ func (s *Server) setupRoutes() {
 func (s *Server) Start(port string) error {
 	s.setupRoutes()
 
-	s.logger.Info("Starting server", slog.String("port", port))
+	addr := net.JoinHostPort(s.config.Server.Host, port)
+	s.logger.Info("Starting server",
+		slog.String("host", s.config.Server.Host),
+		slog.String("port", port),
+		slog.String("addr", addr),
+	)
 
-	return s.app.Listen(":" + port)
+	return s.app.Listen(addr)
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
