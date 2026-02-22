@@ -1,11 +1,13 @@
 package server
 
 import (
-    "strconv"
+	"errors"
+	"strconv"
 
-    "go-service-template/internal/models"
+	"go-service-template/internal/models"
+	"go-service-template/internal/service"
 
-    "github.com/gofiber/fiber/v2"
+	"github.com/gofiber/fiber/v2"
 )
 
 // healthCheck проверка работоспособности сервиса
@@ -40,11 +42,9 @@ func (s *Server) createExample(c *fiber.Ctx) error {
 		})
 	}
 
-    example, err := s.services.Example.CreateExample(c.UserContext(), &req)
+	example, err := s.services.Example.CreateExample(c.UserContext(), &req)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: err.Error(),
-		})
+		return s.handleServiceError(c, err)
 	}
 
 	return c.Status(fiber.StatusCreated).JSON(example)
@@ -79,11 +79,9 @@ func (s *Server) getAllExamples(c *fiber.Ctx) error {
 		})
 	}
 
-    examples, err := s.services.Example.GetAllExamples(c.UserContext(), limit, offset)
+	examples, err := s.services.Example.GetAllExamples(c.UserContext(), limit, offset)
 	if err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: err.Error(),
-		})
+		return s.handleServiceError(c, err)
 	}
 
 	return c.JSON(models.ExampleResponse{
@@ -111,16 +109,9 @@ func (s *Server) getExample(c *fiber.Ctx) error {
 		})
 	}
 
-    example, err := s.services.Example.GetExampleByID(c.UserContext(), id)
+	example, err := s.services.Example.GetExampleByID(c.UserContext(), id)
 	if err != nil {
-		if err.Error() == "example not found" {
-			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
-				Error: err.Error(),
-			})
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: err.Error(),
-		})
+		return s.handleServiceError(c, err)
 	}
 
 	return c.JSON(example)
@@ -154,16 +145,9 @@ func (s *Server) updateExample(c *fiber.Ctx) error {
 		})
 	}
 
-    example, err := s.services.Example.UpdateExample(c.UserContext(), id, &req)
+	example, err := s.services.Example.UpdateExample(c.UserContext(), id, &req)
 	if err != nil {
-		if err.Error() == "example not found" {
-			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
-				Error: err.Error(),
-			})
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: err.Error(),
-		})
+		return s.handleServiceError(c, err)
 	}
 
 	return c.JSON(example)
@@ -189,18 +173,43 @@ func (s *Server) deleteExample(c *fiber.Ctx) error {
 		})
 	}
 
-    if err := s.services.Example.DeleteExample(c.UserContext(), id); err != nil {
-		if err.Error() == "example not found" {
-			return c.Status(fiber.StatusNotFound).JSON(models.ErrorResponse{
-				Error: err.Error(),
-			})
-		}
-		return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{
-			Error: err.Error(),
-		})
+	if err := s.services.Example.DeleteExample(c.UserContext(), id); err != nil {
+		return s.handleServiceError(c, err)
 	}
 
 	return c.JSON(models.MessageResponse{
 		Message: "Example deleted successfully",
 	})
+}
+
+func (s *Server) handleServiceError(c *fiber.Ctx, err error) error {
+	status := mapServiceErrorToHTTPStatus(err)
+	if status == fiber.StatusInternalServerError {
+		s.logger.Error("Unhandled service error", "error", err)
+		return c.Status(status).JSON(models.ErrorResponse{
+			Error: "internal server error",
+		})
+	}
+
+	return c.Status(status).JSON(models.ErrorResponse{
+		Error: err.Error(),
+	})
+}
+
+func mapServiceErrorToHTTPStatus(err error) int {
+	switch {
+	case errors.Is(err, service.ErrExampleNotFound):
+		return fiber.StatusNotFound
+	case errors.Is(err, service.ErrInvalidExampleID),
+		errors.Is(err, service.ErrLimitMustBePositive),
+		errors.Is(err, service.ErrOffsetMustBeNonNeg),
+		errors.Is(err, service.ErrRequestCannotBeNil),
+		errors.Is(err, service.ErrNameRequired),
+		errors.Is(err, service.ErrNameTooLong),
+		errors.Is(err, service.ErrDescriptionTooLong),
+		errors.Is(err, service.ErrValueCannotBeNeg):
+		return fiber.StatusBadRequest
+	default:
+		return fiber.StatusInternalServerError
+	}
 }

@@ -1,0 +1,16 @@
+.git
+.gitignore
+.cursor
+.idea
+.env
+.env.*
+!.env.example
+tmp
+bin
+dist
+coverage
+*.log
+*.out
+*.test
+*.local
+README.md

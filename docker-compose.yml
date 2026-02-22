@@ -1,54 +1,59 @@
-version: '3.8'
-
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:15.13-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_DB: service_db
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: password
-    ports:
-      - "5432:5432"
+      POSTGRES_DB: ${DB_NAME:-service_db}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-password}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-service_db}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   migrate:
-    image: migrate/migrate
+    image: migrate/migrate:v4.18.1
+    restart: "no"
     depends_on:
       postgres:
         condition: service_healthy
     volumes:
-      - ./migrations:/migrations
+      - ./migrations:/migrations:ro
     command: [
       "-path", "/migrations",
-      "-database", "postgres://postgres:password@postgres:5432/service_db?sslmode=disable",
+      "-database", "postgres://${DB_USER:-postgres}:${DB_PASSWORD:-password}@postgres:5432/${DB_NAME:-service_db}?sslmode=${DB_SSLMODE:-disable}",
       "up"
     ]
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    restart: unless-stopped
     depends_on:
-      - migrate
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
     ports:
-      - "8080:8080"
+      - "${SERVER_PORT:-8080}:8080"
     environment:
       DB_HOST: postgres
       DB_PORT: 5432
-      DB_NAME: service_db
-      DB_USER: postgres
-      DB_PASSWORD: password
-      DB_SSLMODE: disable
-      DB_MAX_CONNS: 20
-      DB_MIN_CONNS: 2
-      DB_MAX_CONN_LIFETIME: 1h
-      DB_MAX_CONN_IDLE_TIME: 30m
+      DB_NAME: ${DB_NAME:-service_db}
+      DB_USER: ${DB_USER:-postgres}
+      DB_PASSWORD: ${DB_PASSWORD:-password}
+      DB_SSLMODE: ${DB_SSLMODE:-disable}
+      DB_MAX_CONNS: ${DB_MAX_CONNS:-20}
+      DB_MIN_CONNS: ${DB_MIN_CONNS:-2}
+      DB_MAX_CONN_LIFETIME: ${DB_MAX_CONN_LIFETIME:-1h}
+      DB_MAX_CONN_IDLE_TIME: ${DB_MAX_CONN_IDLE_TIME:-30m}
       SERVER_PORT: 8080
-      DEBUG_MODE: true
+      DEBUG_MODE: ${DEBUG_MODE:-true}
 
 volumes:
-  postgres_data: 
+  postgres_data: {}

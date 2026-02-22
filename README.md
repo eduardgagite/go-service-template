@@ -3,7 +3,7 @@
 # 🚀 Go Service Template
 
 <p align="center">
-  <img src="https://img.shields.io/badge/Go-1.21+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" />
+  <img src="https://img.shields.io/badge/Go-1.26+-00ADD8?style=for-the-badge&logo=go&logoColor=white" alt="Go Version" />
   <img src="https://img.shields.io/badge/Fiber-v2.52+-00ACD7?style=for-the-badge&logo=fiber&logoColor=white" alt="Fiber" />
   <img src="https://img.shields.io/badge/PostgreSQL-15+-336791?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL" />
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
@@ -120,7 +120,7 @@ go-service-template/
 
 ### Предварительные требования
 
-- Go 1.21+
+- Go 1.26+
 - Docker и Docker Compose
 - PostgreSQL (если запускаете локально)
 
@@ -513,7 +513,7 @@ Copyright (c) 2025 Eduard Gagite
 Создано с ❤️ для Go сообщества
 
 [![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Go Version](https://img.shields.io/badge/Go-1.21+-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26+-blue.svg)](https://golang.org)
 [![Docker](https://img.shields.io/badge/Docker-Ready-blue.svg)](Dockerfile)
 
 </div> 
