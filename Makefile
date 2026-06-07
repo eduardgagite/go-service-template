@@ -25,7 +25,23 @@ NC=\033[0m # No Color
 # 📋 Переменные
 APP_NAME=service
 BINARY_DIR=bin
-DOCKER_COMPOSE=docker-compose
+DOCKER_COMPOSE ?= docker compose
+
+# 🏷️ Метаданные сборки (внедряются через -ldflags -X)
+VERSION ?= $(shell git describe --tags --always 2>/dev/null || echo dev)
+COMMIT  ?= $(shell git rev-parse --short HEAD 2>/dev/null || echo none)
+DATE    ?= $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
+LDFLAGS := -s -w -X main.version=$(VERSION) -X main.commit=$(COMMIT) -X main.buildDate=$(DATE)
+
+# 🗄️ Параметры подключения для migrate CLI: берутся из .env, иначе значения по умолчанию
+-include .env
+DB_USER     ?= postgres
+DB_PASSWORD ?= password
+DB_HOST     ?= localhost
+DB_PORT     ?= 5432
+DB_NAME     ?= service_db
+DB_SSLMODE  ?= disable
+DB_DSN := postgres://$(DB_USER):$(DB_PASSWORD)@$(DB_HOST):$(DB_PORT)/$(DB_NAME)?sslmode=$(DB_SSLMODE)
 
 # 🎯 Цель по умолчанию
 .DEFAULT_GOAL := help
@@ -37,7 +53,7 @@ DOCKER_COMPOSE=docker-compose
 build: ## 🔨 Собрать приложение
 	@echo "$(CYAN)🔨 Сборка $(APP_NAME)...$(NC)"
 	@mkdir -p $(BINARY_DIR)
-	@go build -o $(BINARY_DIR)/$(APP_NAME) ./cmd/service
+	@go build -trimpath -ldflags "$(LDFLAGS)" -o $(BINARY_DIR)/$(APP_NAME) ./cmd/service
 	@echo "$(GREEN)✅ Сборка завершена: $(BINARY_DIR)/$(APP_NAME)$(NC)"
 
 run: ## 🚀 Запустить приложение локально
@@ -70,7 +86,7 @@ lint: ## 🔍 Проверить код линтером
 		golangci-lint run; \
 		echo "$(GREEN)✅ Линтинг завершен$(NC)"; \
 	else \
-		echo "$(RED)❌ golangci-lint не установлен. Установите: curl -sSfL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin v1.54.2$(NC)"; \
+		echo "$(RED)❌ golangci-lint не установлен. Установите: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.10.1$(NC)"; \
 	fi
 
 check: fmt lint test ## ✅ Полная проверка (форматирование + линтинг + тесты)
@@ -118,7 +134,7 @@ stop: docker-down ## 🛑 Остановить сервис
 migrate-up: ## ⬆️  Применить миграции базы данных
 	@echo "$(BLUE)⬆️ Применение миграций...$(NC)"
 	@if command -v migrate > /dev/null; then \
-		migrate -path migrations -database "postgres://postgres:password@localhost:5432/service_db?sslmode=disable" up; \
+		migrate -path migrations -database "$(DB_DSN)" up; \
 		echo "$(GREEN)✅ Миграции применены$(NC)"; \
 	else \
 		echo "$(RED)❌ migrate CLI не установлен. Установите: https://github.com/golang-migrate/migrate$(NC)"; \
@@ -127,7 +143,7 @@ migrate-up: ## ⬆️  Применить миграции базы данных
 migrate-down: ## ⬇️  Откатить миграции базы данных
 	@echo "$(YELLOW)⬇️ Откат миграций...$(NC)"
 	@if command -v migrate > /dev/null; then \
-		migrate -path migrations -database "postgres://postgres:password@localhost:5432/service_db?sslmode=disable" down; \
+		migrate -path migrations -database "$(DB_DSN)" down; \
 		echo "$(GREEN)✅ Миграции откачены$(NC)"; \
 	else \
 		echo "$(RED)❌ migrate CLI не установлен. Установите: https://github.com/golang-migrate/migrate$(NC)"; \

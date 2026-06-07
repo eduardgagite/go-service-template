@@ -198,7 +198,7 @@ func TestLoad_Validation(t *testing.T) {
 
 	t.Run("invalid sslmode", func(t *testing.T) {
 		t.Setenv("DB_PASSWORD", "pass")
-		t.Setenv("DB_SSLMODE", "diasble")
+		t.Setenv("DB_SSLMODE", "bogus")
 
 		_, err := Load()
 		if err == nil {

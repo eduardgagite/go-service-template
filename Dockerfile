@@ -13,10 +13,13 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go run github.com/swaggo/swag/cmd/swag@v1.16.5 init -g cmd/service/main.go -o docs --parseInternal
 
 ARG TARGETOS TARGETARCH
+ARG VERSION=dev COMMIT=none BUILD_DATE=unknown
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
     CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH:-amd64} \
-    go build -trimpath -ldflags "-s -w" -o /out/service ./cmd/service
+    go build -trimpath \
+    -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT} -X main.buildDate=${BUILD_DATE}" \
+    -o /out/service ./cmd/service
 
 FROM gcr.io/distroless/static:nonroot
 

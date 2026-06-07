@@ -38,6 +38,13 @@ import (
 // @tag.name examples
 // @tag.description Example CRUD operations
 
+// Метаданные сборки, внедряются через -ldflags -X.
+var (
+	version   = "dev"
+	commit    = "none"
+	buildDate = "unknown"
+)
+
 func main() {
 	if err := run(); err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, "service failed to start:", err)
@@ -109,6 +116,12 @@ func initStorage(cfg *config.Config) (*postgres.PostgresStorage, error) {
 func (a *App) Run() error {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
+
+	a.logger.Info("Starting service",
+		slog.String("version", version),
+		slog.String("commit", commit),
+		slog.String("build_date", buildDate),
+	)
 
 	serverErr := make(chan error, 1)
 

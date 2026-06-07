@@ -136,13 +136,14 @@ cd go-service-template
 ```bash
 make start
 # или
-docker-compose up --build
+docker compose up --build
 ```
 
 3. **Проверьте работу:**
 ```bash
-# Health check
-curl http://localhost:8080/health
+# Проверки состояния
+curl http://localhost:8080/livez   # liveness (без зависимостей)
+curl http://localhost:8080/readyz  # readiness (проверяет БД)
 
 # Создание примера
 curl -X POST http://localhost:8080/api/v1/examples \
@@ -169,16 +170,16 @@ curl http://localhost:8080/api/v1/examples
 <tr>
 <td><strong>📚 Swagger</strong></td>
 <td><code>http://localhost:8080/swagger/</code></td>
-<td>Интерактивная документация API<br/><small>⚠️ Требует генерации: <code>make swagger-gen</code></small></td>
+<td>Документация API (включается <code>ENABLE_SWAGGER=true</code>; в Docker генерируется при сборке)</td>
 </tr>
 <tr>
-<td><strong>❤️ Health Check</strong></td>
-<td><code>http://localhost:8080/health</code></td>
-<td>Проверка работоспособности сервиса</td>
+<td><strong>❤️ Health</strong></td>
+<td><code>/livez</code>, <code>/readyz</code></td>
+<td>Liveness (без зависимостей) и readiness (проверка БД). <code>/health</code> — алиас readiness</td>
 </tr>
 </table>
 
-> **💡 Важно:** Для работы Swagger документации необходимо сначала её сгенерировать командой `make swagger-gen` или использовать `make swagger-serve` для автоматической генерации и запуска.
+> **💡 Swagger:** выключен по умолчанию (`ENABLE_SWAGGER=false`). В Docker-образе спецификация генерируется при сборке — достаточно поднять стек с `ENABLE_SWAGGER=true`. Локально используйте `make swagger-serve` (генерация + запуск).
 
 ### Локальный запуск
 
@@ -193,8 +194,9 @@ export DB_HOST=localhost
 export DB_PORT=5432
 export DB_NAME=service_db
 export DB_USER=postgres
-export DB_PASSWORD=password
-export DEBUG_MODE=true
+export DB_PASSWORD=password   # обязательна — без неё конфиг не пройдёт валидацию
+export DEBUG_MODE=true        # человекочитаемые логи для разработки
+export ENABLE_SWAGGER=true    # включить Swagger UI на /swagger/
 ```
 
 3. Запустите PostgreSQL и выполните миграции
@@ -209,14 +211,16 @@ go run ./cmd/service
 <details>
 <summary><strong>🔍 Нажмите, чтобы развернуть полный список API</strong></summary>
 
-### 🏥 Health Check
+### 🏥 Проверки состояния
 ```http
-GET /health
+GET /livez    # liveness — 200, пока процесс жив (без зависимостей)
+GET /readyz   # readiness — 200, если БД доступна, иначе 503
+GET /health   # алиас readiness (обратная совместимость)
 ```
-**Ответ:**
+**Ответ `/readyz`:**
 ```json
 {
-  "message": "Service is healthy"
+  "message": "ready"
 }
 ```
 
@@ -280,15 +284,23 @@ GET /swagger/*
 | `DB_PORT` | Порт базы данных | `5432` |
 | `DB_NAME` | Название базы данных | `service_db` |
 | `DB_USER` | Пользователь БД | `postgres` |
-| `DB_PASSWORD` | Пароль БД | `` |
-| `DB_SSLMODE` | SSL режим для БД | `disable` |
-| `SERVER_HOST` | Хост сервера | `localhost` |
-| `SERVER_PORT` | Порт сервера | `8080` |
-| `DEBUG_MODE` | Режим отладки | `false` |
+| `DB_PASSWORD` | Пароль БД (**обязательна**) | — |
+| `DB_SSLMODE` | SSL-режим (`disable`/`require`/`verify-full`/…) | `disable` |
 | `DB_MAX_CONNS` | Максимум коннектов пула | `10` |
 | `DB_MIN_CONNS` | Минимум коннектов пула | `1` |
 | `DB_MAX_CONN_LIFETIME` | Срок жизни коннекта | `1h` |
 | `DB_MAX_CONN_IDLE_TIME` | Idle-время коннекта | `30m` |
+| `SERVER_HOST` | Хост сервера | `localhost` |
+| `SERVER_PORT` | Порт сервера | `8080` |
+| `SERVER_READ_TIMEOUT` | Таймаут чтения запроса | `10s` |
+| `SERVER_WRITE_TIMEOUT` | Таймаут записи ответа | `10s` |
+| `SERVER_BODY_LIMIT` | Макс. размер тела запроса, байт | `4194304` |
+| `SERVER_RATE_LIMIT` | Лимит запросов/мин на IP (0 — выкл.) | `100` |
+| `CORS_ALLOW_ORIGINS` | Разрешённые CORS-источники | `*` |
+| `DEBUG_MODE` | Текстовые debug-логи вместо JSON | `false` |
+| `ENABLE_SWAGGER` | Включить Swagger UI на `/swagger/` | `false` |
+
+> **ℹ️ Примечание:** в таблице — значения по умолчанию из кода. Локальный стек (`.env.example` / `docker-compose.yml`) переопределяет часть из них: `SERVER_HOST=0.0.0.0`, `DB_MAX_CONNS=20`, `DB_MIN_CONNS=2`, `DB_PASSWORD=password`, `ENABLE_SWAGGER=true`.
 
 ## 📊 База данных
 
@@ -299,7 +311,7 @@ CREATE TABLE examples (
     id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    value DECIMAL(10,2) DEFAULT 0.00,
+    value DOUBLE PRECISION NOT NULL DEFAULT 0,
     is_active BOOLEAN DEFAULT true,
     created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW()
@@ -334,21 +346,20 @@ type UserRequest struct {
 // internal/service/storage.go
 type Storage interface {
     // ... существующие методы
-    CreateUser(user *User) error
-    GetUserByID(id int) (*User, error)
+    CreateUser(ctx context.Context, user *models.User) error
+    GetUserByID(ctx context.Context, id int) (*models.User, error)
 }
 ```
 
 #### 3️⃣ Реализуйте в PostgreSQL
 ```go
 // internal/storage/postgres/storage.go
-import "go-service-template/internal/service"
-
-// PostgresStorage реализует service.Storage
-func (s *PostgresStorage) CreateUser(user *User) error {
+func (s *PostgresStorage) CreateUser(ctx context.Context, user *models.User) error {
     query := `INSERT INTO users (name, email, created_at) VALUES ($1, $2, $3) RETURNING id`
-    err := s.db.QueryRow(query, user.Name, user.Email, user.CreatedAt).Scan(&user.ID)
-    return err
+    if err := s.pool.QueryRow(ctx, query, user.Name, user.Email, user.CreatedAt).Scan(&user.ID); err != nil {
+        return fmt.Errorf("failed to create user: %w", err)
+    }
+    return nil
 }
 ```
 
@@ -357,29 +368,32 @@ func (s *PostgresStorage) CreateUser(user *User) error {
 // internal/service/service.go
 type Service interface {
     // ... существующие методы
-    CreateUser(req *UserRequest) (*User, error)
-    GetUserByID(id int) (*User, error)
+    CreateUser(ctx context.Context, req *models.UserRequest) (*models.User, error)
+    GetUserByID(ctx context.Context, id int) (*models.User, error)
 }
 
+// internal/service/errors.go — объявите sentinel-ошибки (паттерн уже есть в проекте)
+var (
+    ErrUserNameRequired = errors.New("name is required")
+    ErrCreateUserFailed = errors.New("failed to create user")
+)
+
 // internal/service/user.go (или в example.go)
-func (s *service) CreateUser(req *UserRequest) (*User, error) {
-    // Валидация
+func (s *service) CreateUser(ctx context.Context, req *models.UserRequest) (*models.User, error) {
     if strings.TrimSpace(req.Name) == "" {
-        return nil, errors.New("name is required")
+        return nil, ErrUserNameRequired
     }
-    
-    // Создание модели
-    user := &User{
+
+    user := &models.User{
         Name:      strings.TrimSpace(req.Name),
         Email:     strings.TrimSpace(req.Email),
         CreatedAt: time.Now(),
     }
-    
-    // Сохранение
-    if err := s.storage.CreateUser(user); err != nil {
-        return nil, errors.New("failed to create user")
+
+    if err := s.storage.CreateUser(ctx, user); err != nil {
+        s.logger.Error("failed to create user", slog.String("error", err.Error()))
+        return nil, ErrCreateUserFailed
     }
-    
     return user, nil
 }
 ```
@@ -390,17 +404,17 @@ func (s *service) CreateUser(req *UserRequest) (*User, error) {
 // @Summary Create user
 // @Tags users
 func (s *Server) createUser(c *fiber.Ctx) error {
-    var req UserRequest
+    var req models.UserRequest
     if err := c.BodyParser(&req); err != nil {
-        return c.Status(400).JSON(ErrorResponse{Error: err.Error()})
+        return c.Status(fiber.StatusBadRequest).JSON(models.ErrorResponse{Error: "invalid request body"})
     }
-    
-    user, err := s.services.Example.CreateUser(&req)
+
+    user, err := s.services.User.CreateUser(c.UserContext(), &req)
     if err != nil {
-        return c.Status(400).JSON(ErrorResponse{Error: err.Error()})
+        return s.handleServiceError(c, err) // маппинг sentinel-ошибок в HTTP-статус
     }
-    
-    return c.Status(201).JSON(user)
+
+    return c.Status(fiber.StatusCreated).JSON(user)
 }
 ```
 
@@ -410,6 +424,10 @@ func (s *Server) createUser(c *fiber.Ctx) error {
 users := api.Group("/users")
 users.Post("/", s.createUser)
 ```
+
+#### 7️⃣ Зарегистрируйте ресурс в двух местах
+- Добавьте новый сервис в структуру `Services` и в `NewServices` — `internal/service/service.go`.
+- Сопоставьте новые sentinel-ошибки с HTTP-статусами в `mapServiceErrorToHTTPStatus` — `internal/server/handlers.go`.
 
 </details>
 
@@ -480,17 +498,22 @@ make swagger-gen
 
 ### 🧪 Тестирование
 
+Проект использует стандартный `testing` (без сторонних assert-библиотек): моки за интерфейсами + хелперы `newTestServer`/`doRequest`.
+
 ```go
 // internal/server/handlers_test.go
 func TestCreateExample(t *testing.T) {
-    // Настройка тестового сервера
-    app := fiber.New()
-    
-    // Тестовый запрос
-    req := httptest.NewRequest("POST", "/api/v1/examples", nil)
-    resp, _ := app.Test(req)
-    
-    assert.Equal(t, 201, resp.StatusCode)
+    mock := &mockExampleService{
+        createFn: func(_ context.Context, req *models.ExampleRequest) (*models.Example, error) {
+            return &models.Example{ID: 1, Name: req.Name}, nil
+        },
+    }
+    s := newTestServer(mock, nil)
+
+    resp := doRequest(s, http.MethodPost, "/api/v1/examples", models.ExampleRequest{Name: "test"})
+    if resp.StatusCode != http.StatusCreated {
+        t.Fatalf("ожидался 201, получен %d", resp.StatusCode)
+    }
 }
 ```
 
