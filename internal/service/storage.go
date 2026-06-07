@@ -6,6 +6,7 @@ import (
 )
 
 type Storage interface {
+	Ping(ctx context.Context) error
 	Close() error
 
 	CreateExample(ctx context.Context, example *models.Example) error

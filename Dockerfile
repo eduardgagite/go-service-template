@@ -7,6 +7,11 @@ RUN --mount=type=cache,target=/go/pkg/mod \
     go mod download && go mod verify
 
 COPY . .
+
+RUN --mount=type=cache,target=/go/pkg/mod \
+    --mount=type=cache,target=/root/.cache/go-build \
+    go run github.com/swaggo/swag/cmd/swag@v1.16.5 init -g cmd/service/main.go -o docs --parseInternal
+
 ARG TARGETOS TARGETARCH
 RUN --mount=type=cache,target=/go/pkg/mod \
     --mount=type=cache,target=/root/.cache/go-build \
@@ -17,6 +22,7 @@ FROM gcr.io/distroless/static:nonroot
 
 WORKDIR /app
 COPY --from=builder /out/service /app/service
+COPY --from=builder /src/docs /app/docs
 
 EXPOSE 8080
 

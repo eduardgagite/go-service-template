@@ -1,8 +1,10 @@
 package server
 
 import (
+	"context"
 	"errors"
 	"strconv"
+	"time"
 
 	"go-service-template/internal/models"
 	"go-service-template/internal/service"
@@ -10,18 +12,37 @@ import (
 	"github.com/gofiber/fiber/v2"
 )
 
-// healthCheck проверка работоспособности сервиса
-// @Summary Health check
-// @Description Returns service health status
+// liveness проверка, что процесс жив (без внешних зависимостей)
+// @Summary Liveness probe
+// @Description Returns 200 while the process is running. Wire to k8s livenessProbe.
 // @Tags health
-// @Accept json
 // @Produce json
 // @Success 200 {object} models.MessageResponse
-// @Router /health [get]
-func (s *Server) healthCheck(c *fiber.Ctx) error {
-	return c.JSON(models.MessageResponse{
-		Message: "Service is healthy",
-	})
+// @Router /livez [get]
+func (s *Server) liveness(c *fiber.Ctx) error {
+	return c.JSON(models.MessageResponse{Message: "alive"})
+}
+
+// readiness проверка готовности обслуживать трафик (доступность БД)
+// @Summary Readiness probe
+// @Description Returns 200 when dependencies are reachable, 503 otherwise. Wire to k8s readinessProbe.
+// @Tags health
+// @Produce json
+// @Success 200 {object} models.MessageResponse
+// @Failure 503 {object} models.ErrorResponse "Service unavailable"
+// @Router /readyz [get]
+func (s *Server) readiness(c *fiber.Ctx) error {
+	ctx, cancel := context.WithTimeout(c.UserContext(), 2*time.Second)
+	defer cancel()
+
+	if err := s.services.Ping(ctx); err != nil {
+		s.logger.Error("readiness check failed", "error", err)
+		return c.Status(fiber.StatusServiceUnavailable).JSON(models.ErrorResponse{
+			Error: "database is unavailable",
+		})
+	}
+
+	return c.JSON(models.MessageResponse{Message: "ready"})
 }
 
 // createExample создает новый пример

@@ -143,15 +143,16 @@ func (s *service) validateExampleRequest(req *models.ExampleRequest) error {
 		return ErrRequestCannotBeNil
 	}
 
-	if strings.TrimSpace(req.Name) == "" {
+	name := strings.TrimSpace(req.Name)
+	if name == "" {
 		return ErrNameRequired
 	}
 
-	if len(req.Name) > 255 {
+	if len(name) > 255 {
 		return ErrNameTooLong
 	}
 
-	if len(req.Description) > 1000 {
+	if len(strings.TrimSpace(req.Description)) > 1000 {
 		return ErrDescriptionTooLong
 	}
 

@@ -47,6 +47,10 @@ func NewStorage(ctx context.Context, dsn string, dbCfg config.DatabaseConfig) (*
 	return &PostgresStorage{pool: pool}, nil
 }
 
+func (s *PostgresStorage) Ping(ctx context.Context) error {
+	return s.pool.Ping(ctx)
+}
+
 func (s *PostgresStorage) Close() error {
 	if s.pool != nil {
 		s.pool.Close()

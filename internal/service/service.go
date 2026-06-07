@@ -16,11 +16,20 @@ type Service interface {
 }
 
 type Services struct {
-	Example Service
+	Example  Service
+	PingFunc func(ctx context.Context) error
 }
 
 func NewServices(storage Storage, logger *slog.Logger) *Services {
 	return &Services{
-		Example: NewService(storage, logger),
+		Example:  NewService(storage, logger),
+		PingFunc: storage.Ping,
 	}
+}
+
+func (s *Services) Ping(ctx context.Context) error {
+	if s.PingFunc == nil {
+		return nil
+	}
+	return s.PingFunc(ctx)
 }

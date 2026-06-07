@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -56,11 +55,10 @@ func run() error {
 }
 
 type App struct {
-	cfg     *config.Config
-	logger  *slog.Logger
-	logFile *os.File
-	db      *postgres.PostgresStorage
-	server  *server.Server
+	cfg    *config.Config
+	logger *slog.Logger
+	db     *postgres.PostgresStorage
+	server *server.Server
 }
 
 func NewApp() (*App, error) {
@@ -69,14 +67,10 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 
-	logFile, logger, err := setupLogger(cfg.App.DebugMode)
-	if err != nil {
-		return nil, err
-	}
+	logger := setupLogger(cfg.App.DebugMode)
 
 	db, err := initStorage(cfg)
 	if err != nil {
-		_ = logFile.Close()
 		return nil, fmt.Errorf("connect database: %w", err)
 	}
 
@@ -84,11 +78,10 @@ func NewApp() (*App, error) {
 	srv := server.New(services, logger, cfg)
 
 	return &App{
-		cfg:     cfg,
-		logger:  logger,
-		logFile: logFile,
-		db:      db,
-		server:  srv,
+		cfg:    cfg,
+		logger: logger,
+		db:     db,
+		server: srv,
 	}, nil
 }
 
@@ -169,48 +162,14 @@ func (a *App) Shutdown(ctx context.Context) error {
 		}
 	}
 
-	if a.logFile != nil {
-		if err := a.logFile.Close(); err != nil {
-			shutdownErrs = append(shutdownErrs, fmt.Errorf("close log file: %w", err))
-		}
-	}
-
 	return errors.Join(shutdownErrs...)
 }
 
-func setupLogger(debugMode bool) (*os.File, *slog.Logger, error) {
-	var logger *slog.Logger
-	logFile, err := createLogFile()
-	if err != nil {
-		_, _ = fmt.Fprintf(os.Stderr, "log file is unavailable, using stdout only: %v\n", err)
-		if debugMode {
-			logger = slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-		} else {
-			logger = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
-		}
-		return nil, logger, nil
-	}
-
+// setupLogger возвращает slog-логгер, пишущий только в stdout. В контейнерах
+// сбором stdout занимается платформа (Docker/k8s) — приложение не должно владеть лог-файлами.
+func setupLogger(debugMode bool) *slog.Logger {
 	if debugMode {
-		logger = slog.New(slog.NewTextHandler(io.MultiWriter(os.Stdout, logFile), &slog.HandlerOptions{Level: slog.LevelDebug}))
-	} else {
-		logger = slog.New(slog.NewJSONHandler(io.MultiWriter(os.Stdout, logFile), &slog.HandlerOptions{Level: slog.LevelInfo}))
+		return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
 	}
-
-	return logFile, logger, nil
-}
-
-func createLogFile() (*os.File, error) {
-	if err := os.MkdirAll("logs", os.ModePerm); err != nil {
-		return nil, fmt.Errorf("create log directory: %w", err)
-	}
-
-	logFilePath := "logs/" + "logfile_" + time.Now().Format("02-01-2006_15-04-05") + ".log"
-
-	logFile, err := os.OpenFile(logFilePath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0666)
-	if err != nil {
-		return nil, fmt.Errorf("open log file %q: %w", logFilePath, err)
-	}
-
-	return logFile, nil
+	return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 }

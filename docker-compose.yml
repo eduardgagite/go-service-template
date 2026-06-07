@@ -52,8 +52,10 @@ services:
       DB_MIN_CONNS: ${DB_MIN_CONNS:-2}
       DB_MAX_CONN_LIFETIME: ${DB_MAX_CONN_LIFETIME:-1h}
       DB_MAX_CONN_IDLE_TIME: ${DB_MAX_CONN_IDLE_TIME:-30m}
+      SERVER_HOST: 0.0.0.0
       SERVER_PORT: 8080
-      DEBUG_MODE: ${DEBUG_MODE:-true}
+      DEBUG_MODE: ${DEBUG_MODE:-false}
+      ENABLE_SWAGGER: ${ENABLE_SWAGGER:-true}
 
 volumes:
   postgres_data: {}
